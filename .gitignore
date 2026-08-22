@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+
+.vscode/
+.idea/
+
+runs/
+wandb/
+
+*.pt
+*.pth
+
+.DS_Store
