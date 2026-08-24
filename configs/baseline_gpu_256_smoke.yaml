@@ -1,4 +1,4 @@
-exp_name: episode_dr_gpu_seed1
+exp_name: baseline_gpu_smoke
 
 seed: 1
 
@@ -7,26 +7,26 @@ cuda: true
 torch_deterministic: true
 
 # Environment
-env_id: PushCubeDR-v1
+env_id: PushCube-v1
 obs_mode: state
 reward_mode: normalized_dense
 sim_backend: physx_cuda
 control_mode: pd_joint_delta_pos
 
 # Parallel environments
-num_envs: 2048
+num_envs: 256
 num_eval_envs: 16
 
 # PPO rollout
 num_steps: 20
-total_timesteps: 2000000
+total_timesteps: 51200
 
 learning_rate: 0.0003
 gamma: 0.8
 gae_lambda: 0.9
 
-num_minibatches: 32
-update_epochs: 8
+num_minibatches: 8
+update_epochs: 4
 
 norm_adv: true
 clip_coef: 0.2
@@ -49,8 +49,8 @@ reconfiguration_freq: null
 eval_reconfiguration_freq: 1
 
 # Evaluation
-eval_freq: 10
-num_eval_steps: 200
+eval_freq: 5
+num_eval_steps: 100
 
 # Output
 capture_video: false

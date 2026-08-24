@@ -1,4 +1,4 @@
-exp_name: episode_dr_gpu_seed1
+exp_name: baseline_gpu_smoke
 
 seed: 1
 
@@ -7,7 +7,7 @@ cuda: true
 torch_deterministic: true
 
 # Environment
-env_id: PushCubeDR-v1
+env_id: PushCube-v1
 obs_mode: state
 reward_mode: normalized_dense
 sim_backend: physx_cuda

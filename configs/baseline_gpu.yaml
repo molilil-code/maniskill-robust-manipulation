@@ -1,19 +1,23 @@
 exp_name: baseline_gpu_smoke
 
 seed: 1
+
+# GPU
 cuda: true
 torch_deterministic: true
 
+# Environment
 env_id: PushCube-v1
-
 obs_mode: state
 reward_mode: normalized_dense
 sim_backend: physx_cuda
 control_mode: pd_joint_delta_pos
 
+# Parallel environments
 num_envs: 2048
 num_eval_envs: 16
 
+# PPO rollout
 num_steps: 20
 total_timesteps: 2000000
 
@@ -33,19 +37,27 @@ vf_coef: 0.5
 max_grad_norm: 0.5
 target_kl: 0.1
 
-anneal_lr: false
 reward_scale: 1.0
+anneal_lr: false
+finite_horizon_gae: false
 
-eval_freq: 10
-num_eval_steps: 200
-
+# Reset
 partial_reset: true
 eval_partial_reset: false
 
 reconfiguration_freq: null
 eval_reconfiguration_freq: 1
 
+# Evaluation
+eval_freq: 10
+num_eval_steps: 200
+
+# Output
 capture_video: false
 save_model: true
+<<<<<<< HEAD
 
 encoder_type: state
+=======
+track: false
+>>>>>>> b297a78 (experiment v1)

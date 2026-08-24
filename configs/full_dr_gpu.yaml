@@ -1,0 +1,58 @@
+exp_name: full_dr_gpu_seed1
+
+seed: 1
+
+# GPU
+cuda: true
+torch_deterministic: true
+
+# Environment
+env_id: PushCubeFullDR-v1
+obs_mode: state
+reward_mode: normalized_dense
+sim_backend: physx_cuda
+control_mode: pd_joint_delta_pos
+
+# Parallel environments
+num_envs: 2048
+num_eval_envs: 16
+
+# PPO rollout
+num_steps: 20
+total_timesteps: 2000000
+
+learning_rate: 0.0003
+gamma: 0.8
+gae_lambda: 0.9
+
+num_minibatches: 32
+update_epochs: 8
+
+norm_adv: true
+clip_coef: 0.2
+clip_vloss: false
+
+ent_coef: 0.0
+vf_coef: 0.5
+max_grad_norm: 0.5
+target_kl: 0.1
+
+reward_scale: 1.0
+anneal_lr: false
+finite_horizon_gae: false
+
+# Reset
+partial_reset: true
+eval_partial_reset: false
+
+reconfiguration_freq: null
+eval_reconfiguration_freq: 1
+
+# Evaluation
+eval_freq: 10
+num_eval_steps: 200
+
+# Output
+capture_video: false
+save_model: true
+track: false
