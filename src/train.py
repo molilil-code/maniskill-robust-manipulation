@@ -1,3 +1,4 @@
+from models.encoders import StateEncoder
 from collections import defaultdict
 import os
 import random
@@ -12,7 +13,6 @@ import torch.nn as nn
 import torch.optim as optim
 import argparse
 import yaml
-from torch.distributions.normal import Normal
 from torch.utils.tensorboard import SummaryWriter
 
 # ManiSkill specific imports
@@ -22,6 +22,8 @@ from mani_skill.utils import gym_utils
 from mani_skill.utils.wrappers.flatten import FlattenActionSpaceWrapper
 from mani_skill.utils.wrappers.record import RecordEpisode
 from mani_skill.vector.wrappers.gymnasium import ManiSkillVectorEnv
+
+from src.models.agent import Agent
 
 @dataclass
 class Args:
@@ -119,53 +121,13 @@ class Args:
     sim_backend: str = "physx_cpu"
 
     env_kwargs: dict | None = None
+    encoder_type: str = "state" 
+
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.orthogonal_(layer.weight, std)
     torch.nn.init.constant_(layer.bias, bias_const)
     return layer
 
-
-class Agent(nn.Module):
-    def __init__(self, envs):
-        super().__init__()
-        self.critic = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 256)),
-            nn.Tanh(),
-            layer_init(nn.Linear(256, 256)),
-            nn.Tanh(),
-            layer_init(nn.Linear(256, 256)),
-            nn.Tanh(),
-            layer_init(nn.Linear(256, 1)),
-        )
-        self.actor_mean = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 256)),
-            nn.Tanh(),
-            layer_init(nn.Linear(256, 256)),
-            nn.Tanh(),
-            layer_init(nn.Linear(256, 256)),
-            nn.Tanh(),
-            layer_init(nn.Linear(256, np.prod(envs.single_action_space.shape)), std=0.01*np.sqrt(2)),
-        )
-        self.actor_logstd = nn.Parameter(torch.ones(1, np.prod(envs.single_action_space.shape)) * -0.5)
-
-    def get_value(self, x):
-        return self.critic(x)
-    def get_action(self, x, deterministic=False):
-        action_mean = self.actor_mean(x)
-        if deterministic:
-            return action_mean
-        action_logstd = self.actor_logstd.expand_as(action_mean)
-        action_std = torch.exp(action_logstd)
-        probs = Normal(action_mean, action_std)
-        return probs.sample()
-    def get_action_and_value(self, x, action=None):
-        action_mean = self.actor_mean(x)
-        action_logstd = self.actor_logstd.expand_as(action_mean)
-        action_std = torch.exp(action_logstd)
-        probs = Normal(action_mean, action_std)
-        if action is None:
-            action = probs.sample()
-        return action, probs.log_prob(action).sum(1), probs.entropy().sum(1), self.critic(x)
 
 class Logger:
     def __init__(self, log_wandb=False, tensorboard: SummaryWriter = None) -> None:
@@ -297,7 +259,7 @@ if __name__ == "__main__":
     else:
         print("Running evaluation")
 
-    agent = Agent(envs).to(device)
+    agent = Agent(envs,obs_mode=args.encoder_type,).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     # ALGO Logic: Storage setup

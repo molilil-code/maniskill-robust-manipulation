@@ -1,4 +1,4 @@
-from src.train import Agent
+from src.models.agent import Agent
 
 import argparse
 import csv
@@ -158,6 +158,7 @@ def load_agent(
     device,
 ):
     agent = Agent(env).to(device)
+    
 
     state_dict = torch.load(
         checkpoint,

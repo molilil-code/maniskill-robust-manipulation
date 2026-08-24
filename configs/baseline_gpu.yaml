@@ -47,3 +47,5 @@ eval_reconfiguration_freq: 1
 
 capture_video: false
 save_model: true
+
+encoder_type: state

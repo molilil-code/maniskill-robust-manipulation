@@ -59,3 +59,5 @@ save_train_video_freq: null
 
 anneal_lr: false
 finite_horizon_gae: false
+
+encoder_type: state 
