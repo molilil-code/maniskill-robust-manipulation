@@ -1,0 +1,61 @@
+# Experiment
+exp_name: ppo_state_gpu
+seed: 1
+
+# Device
+cuda: true
+torch_deterministic: true
+
+# Environment
+env_id: PushCube-v1
+obs_mode: state
+reward_mode: normalized_dense
+sim_backend: physx_cuda
+control_mode: pd_joint_delta_pos
+
+num_envs: 2048
+num_eval_envs: 8
+
+reconfiguration_freq: null
+eval_reconfiguration_freq: 1
+
+partial_reset: true
+eval_partial_reset: false
+
+# PPO
+total_timesteps: 2000000
+learning_rate: 0.0003
+
+num_steps: 20
+num_eval_steps: 50
+
+gamma: 0.8
+gae_lambda: 0.9
+
+num_minibatches: 32
+update_epochs: 8
+
+norm_adv: true
+clip_coef: 0.2
+clip_vloss: false
+
+ent_coef: 0.0
+vf_coef: 0.5
+
+max_grad_norm: 0.5
+target_kl: 0.1
+
+reward_scale: 1.0
+
+# Evaluation
+eval_freq: 10
+
+# Logging
+capture_video: true
+save_model: true
+track: false
+
+save_train_video_freq: null
+
+anneal_lr: false
+finite_horizon_gae: false

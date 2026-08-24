@@ -1,0 +1,2 @@
+condition,num_episodes,success_once_mean,success_once_std,return_mean,return_std,episode_len_mean,episode_len_std,reward_mean,reward_std,success_at_end_mean,success_at_end_std,model
+cube_ood,10,0.0,0.0,2.066129446029663,0.7363851070404053,50.0,0.0,0.04132258519530296,0.014727702364325523,0.0,0.0,cpu_baseline

@@ -1,0 +1,15 @@
+env_id: PushCubeDR-v1
+
+obs_mode: state
+reward_mode: normalized_dense
+
+sim_backend: physx_cpu
+
+num_envs: 1
+
+domain_randomization:
+  enabled: true
+
+  cube_xy_range: 0.15
+
+  robot_qpos_noise: 0.04

@@ -10,12 +10,14 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import tyro
+import argparse
+import yaml
 from torch.distributions.normal import Normal
 from torch.utils.tensorboard import SummaryWriter
 
 # ManiSkill specific imports
 import mani_skill.envs
+import src.envs
 from mani_skill.utils import gym_utils
 from mani_skill.utils.wrappers.flatten import FlattenActionSpaceWrapper
 from mani_skill.utils.wrappers.record import RecordEpisode
@@ -112,6 +114,11 @@ class Args:
     num_iterations: int = 0
     """the number of iterations (computed in runtime)"""
 
+    obs_mode: str = "state"
+    reward_mode: str = "normalized_dense"
+    sim_backend: str = "physx_cpu"
+
+    env_kwargs: dict | None = None
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.orthogonal_(layer.weight, std)
     torch.nn.init.constant_(layer.bias, bias_const)
@@ -171,8 +178,29 @@ class Logger:
     def close(self):
         self.writer.close()
 
+#读取 YAML 
+def load_config(config_path):
+    args = Args()
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    for key, value in config.items():
+        if not hasattr(args, key):
+            raise ValueError(f"Unknown config key: {key}")
+
+        setattr(args, key, value)
+
+    return args
+
 if __name__ == "__main__":
-    args = tyro.cli(Args)
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str, required=True, help="Path to yaml config file")
+    cli_args = parser.parse_args()
+
+    # 调用你已经写好的加载函数
+    args = load_config(cli_args.config)
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
@@ -182,9 +210,9 @@ if __name__ == "__main__":
         run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
     else:
         run_name = args.exp_name   
-    if args.num_envs != 1 or args.num_eval_envs != 1:
+    if args.sim_backend == "physx_cpu" and args.num_envs != 1:
         raise ValueError(
-            "ppo_cpu.py requires --num-envs 1 and --num-eval-envs 1 with physx_cpu."
+            "physx_cpu only supports num_envs=1."
         )
 
 
@@ -197,9 +225,32 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
 
     # env setup
-    env_kwargs = dict(obs_mode="state", render_mode="normalized_dense", sim_backend="physx_cpu")
+    env_kwargs = dict(
+        obs_mode=args.obs_mode,
+        reward_mode=args.reward_mode,
+        sim_backend=args.sim_backend,
+    )
+
     if args.control_mode is not None:
         env_kwargs["control_mode"] = args.control_mode
+
+    if args.env_kwargs is not None:
+        env_kwargs.update(args.env_kwargs)
+
+    print("=" * 50)
+    print("Experiment Configuration")
+    print("=" * 50)
+
+    print(f"Environment:      {args.env_id}")
+    print(f"Observation:      {args.obs_mode}")
+    print(f"Backend:          {args.sim_backend}")
+    print(f"Device:           {device}")
+    print(f"Num envs:         {args.num_envs}")
+    print(f"Num steps:        {args.num_steps}")
+    print(f"Batch size:       {args.batch_size}")
+    print(f"Total timesteps:  {args.total_timesteps}")
+
+    print("=" * 50)
     envs = gym.make(args.env_id, num_envs=args.num_envs if not args.evaluate else 1, reconfiguration_freq=args.reconfiguration_freq, **env_kwargs)
     eval_envs = gym.make(args.env_id, num_envs=args.num_eval_envs, reconfiguration_freq=args.eval_reconfiguration_freq, **env_kwargs)
     if isinstance(envs.action_space, gym.spaces.Dict):
@@ -285,7 +336,20 @@ if __name__ == "__main__":
             num_episodes = 0
             for _ in range(args.num_eval_steps):
                 with torch.no_grad():
-                    eval_obs, eval_rew, eval_terminations, eval_truncations, eval_infos = eval_envs.step(agent.get_action(eval_obs, deterministic=True))
+                    eval_action = agent.get_action(
+                    eval_obs,
+                    deterministic=True,
+                    )
+
+                    eval_action = clip_action(eval_action)
+
+                    (
+                    eval_obs,
+                    eval_rew,
+                    eval_terminations,
+                    eval_truncations,
+                    eval_infos,
+                    ) = eval_envs.step(eval_action)
                     if "final_info" in eval_infos:
                         mask = eval_infos["_final_info"]
                         num_episodes += mask.sum()

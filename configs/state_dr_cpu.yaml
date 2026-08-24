@@ -1,0 +1,29 @@
+exp_name: pushcube_dr_cpu
+
+env_id: PushCubeDR-v1
+
+obs_mode: state
+reward_mode: normalized_dense
+sim_backend: physx_cpu
+
+cuda: false
+
+num_envs: 1
+num_eval_envs: 1
+
+env_kwargs:
+  cube_xy_range: 0.13
+  goal_offset_range: [0.17, 0.23]
+  robot_init_qpos_noise: 0.04
+
+total_timesteps: 10000
+
+num_steps: 50
+num_minibatches: 2
+update_epochs: 4
+
+learning_rate: 0.0003
+gamma: 0.8
+gae_lambda: 0.9
+
+capture_video: false

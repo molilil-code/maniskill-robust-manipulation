@@ -1,0 +1,2 @@
+condition,num_episodes,success_once_mean,success_once_std,return_mean,return_std,episode_len_mean,episode_len_std,reward_mean,reward_std,success_at_end_mean,success_at_end_std,model
+normal,100,0.0,0.0,3.8245937824249268,1.3696725368499756,50.0,0.0,0.07649188488721848,0.02739345096051693,0.0,0.0,cpu_baseline
