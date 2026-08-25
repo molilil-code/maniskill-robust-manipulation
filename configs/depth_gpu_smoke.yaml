@@ -1,0 +1,20 @@
+exp_name: depth_gpu_smoke
+
+env_id: PushCube-v1
+obs_mode: depth
+encoder_type: depth
+
+sim_backend: physx_cuda
+cuda: true
+
+num_envs: 16
+num_eval_envs: 4
+
+num_steps: 20
+total_timesteps: 3200
+
+num_minibatches: 4
+update_epochs: 4
+
+capture_video: false
+save_model: true
