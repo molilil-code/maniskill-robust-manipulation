@@ -1,115 +1,73 @@
 import numpy as np
 import torch
 import torch.nn as nn
-
 from torch.distributions.normal import Normal
 
-from .encoders import StateEncoder
+from src.models.encoders import StateEncoder, DepthEncoder
 
 
-def layer_init(
-    layer,
-    std=np.sqrt(2),
-    bias_const=0.0,
-):
-    torch.nn.init.orthogonal_(
-        layer.weight,
-        std,
-    )
-
-    torch.nn.init.constant_(
-        layer.bias,
-        bias_const,
-    )
-
+def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
+    torch.nn.init.orthogonal_(layer.weight, std)
+    torch.nn.init.constant_(layer.bias, bias_const)
     return layer
 
 
 class Agent(nn.Module):
-    def __init__(
-        self,
-        envs,
-        obs_mode="state",
-    ):
+    def __init__(self, envs, encoder_type="state"):
         super().__init__()
 
-        # =========================
-        # Encoder
-        # =========================
-        if obs_mode == "state":
+        # -------------------------------------------------
+        # 1. Observation Encoder
+        # -------------------------------------------------
+        if encoder_type == "state":
             self.encoder = StateEncoder(
                 envs.single_observation_space
             )
+
+        elif encoder_type == "depth":
+            self.encoder = DepthEncoder()
+
         else:
-            raise NotImplementedError(
-                f"Unsupported obs_mode: {obs_mode}"
+            raise ValueError(
+                f"Unsupported encoder_type: {encoder_type}"
             )
 
         feature_dim = self.encoder.output_dim
 
+        # -------------------------------------------------
+        # 2. Action dimension
+        # -------------------------------------------------
         action_dim = int(
-            np.prod(
-                envs.single_action_space.shape
-            )
+            np.prod(envs.single_action_space.shape)
         )
 
-        # =========================
-        # Critic
-        # =========================
+        # -------------------------------------------------
+        # 3. Critic
+        # -------------------------------------------------
         self.critic = nn.Sequential(
-            layer_init(
-                nn.Linear(feature_dim, 256)
-            ),
+            layer_init(nn.Linear(feature_dim, 256)),
             nn.Tanh(),
-
-            layer_init(
-                nn.Linear(256, 256)
-            ),
+            layer_init(nn.Linear(256, 256)),
             nn.Tanh(),
-
-            layer_init(
-                nn.Linear(256, 256)
-            ),
-            nn.Tanh(),
-
-            layer_init(
-                nn.Linear(256, 1)
-            ),
+            layer_init(nn.Linear(256, 1), std=1.0),
         )
 
-        # =========================
-        # Actor
-        # =========================
+        # -------------------------------------------------
+        # 4. Actor
+        # -------------------------------------------------
         self.actor_mean = nn.Sequential(
-            layer_init(
-                nn.Linear(feature_dim, 256)
-            ),
+            layer_init(nn.Linear(feature_dim, 256)),
             nn.Tanh(),
-
-            layer_init(
-                nn.Linear(256, 256)
-            ),
+            layer_init(nn.Linear(256, 256)),
             nn.Tanh(),
-
             layer_init(
-                nn.Linear(256, 256)
-            ),
-            nn.Tanh(),
-
-            layer_init(
-                nn.Linear(
-                    256,
-                    action_dim,
-                ),
-                std=0.01 * np.sqrt(2),
+                nn.Linear(256, action_dim),
+                std=0.01,
             ),
         )
 
         self.actor_logstd = nn.Parameter(
-            torch.ones(
-                1,
-                action_dim,
-            ) * -0.5
+            torch.ones(1, action_dim) * -0.5
         )
 
     def encode(self, obs):
@@ -119,11 +77,7 @@ class Agent(nn.Module):
         x = self.encode(obs)
         return self.critic(x)
 
-    def get_action(
-        self,
-        obs,
-        deterministic=False,
-    ):
+    def get_action(self, obs, deterministic=False):
         x = self.encode(obs)
 
         action_mean = self.actor_mean(x)
@@ -131,46 +85,22 @@ class Agent(nn.Module):
         if deterministic:
             return action_mean
 
-        action_logstd = (
-            self.actor_logstd.expand_as(
-                action_mean
-            )
-        )
+        action_logstd = self.actor_logstd.expand_as(action_mean)
+        action_std = torch.exp(action_logstd)
 
-        action_std = torch.exp(
-            action_logstd
-        )
-
-        probs = Normal(
-            action_mean,
-            action_std,
-        )
+        probs = Normal(action_mean, action_std)
 
         return probs.sample()
 
-    def get_action_and_value(
-        self,
-        obs,
-        action=None,
-    ):
+    def get_action_and_value(self, obs, action=None):
         x = self.encode(obs)
 
         action_mean = self.actor_mean(x)
 
-        action_logstd = (
-            self.actor_logstd.expand_as(
-                action_mean
-            )
-        )
+        action_logstd = self.actor_logstd.expand_as(action_mean)
+        action_std = torch.exp(action_logstd)
 
-        action_std = torch.exp(
-            action_logstd
-        )
-
-        probs = Normal(
-            action_mean,
-            action_std,
-        )
+        probs = Normal(action_mean, action_std)
 
         if action is None:
             action = probs.sample()

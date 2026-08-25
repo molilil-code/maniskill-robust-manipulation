@@ -1,0 +1,49 @@
+exp_name: depth_cpu_smoke
+
+seed: 1
+
+env_id: PushCube-v1
+
+obs_mode: rgb+depth
+encoder_type: depth
+
+sim_backend: physx_cpu
+render_backend: sapien_cpu
+
+cuda: false
+
+num_envs: 1
+num_eval_envs: 1
+
+num_steps: 20
+total_timesteps: 200
+
+learning_rate: 0.0003
+gamma: 0.8
+gae_lambda: 0.9
+
+num_minibatches: 2
+update_epochs: 2
+
+norm_adv: true
+clip_coef: 0.2
+clip_vloss: false
+
+ent_coef: 0.0
+vf_coef: 0.5
+max_grad_norm: 0.5
+target_kl: 0.1
+
+reward_scale: 1.0
+anneal_lr: false
+finite_horizon_gae: false
+
+partial_reset: true
+eval_partial_reset: false
+
+eval_freq: 10
+num_eval_steps: 50
+
+capture_video: false
+save_model: true
+track: false

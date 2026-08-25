@@ -1,4 +1,3 @@
-from models.encoders import StateEncoder
 from collections import defaultdict
 import os
 import random
@@ -122,6 +121,7 @@ class Args:
 
     env_kwargs: dict | None = None
     encoder_type: str = "state" 
+    render_backend: str | None = None
 
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.orthogonal_(layer.weight, std)
@@ -154,6 +154,52 @@ def load_config(config_path):
         setattr(args, key, value)
 
     return args
+
+def make_obs_buffer(obs, num_steps):
+    if isinstance(obs, dict):
+        return {
+            k: make_obs_buffer(v, num_steps)
+            for k, v in obs.items()
+        }
+
+    return torch.empty(
+        (num_steps,) + tuple(obs.shape),
+        dtype=obs.dtype,
+        device=obs.device,
+    )
+
+
+def store_obs(buffer, step, obs):
+    if isinstance(obs, dict):
+        for k in obs:
+            store_obs(buffer[k], step, obs[k])
+    else:
+        buffer[step].copy_(obs)
+
+
+def flatten_obs_buffer(buffer):
+    if isinstance(buffer, dict):
+        return {
+            k: flatten_obs_buffer(v)
+            for k, v in buffer.items()
+        }
+
+    # [num_steps, num_envs, ...]
+    # ->
+    # [num_steps*num_envs, ...]
+    return buffer.reshape(
+        (-1,) + buffer.shape[2:]
+    )
+
+
+def index_obs(obs, indices):
+    if isinstance(obs, dict):
+        return {
+            k: index_obs(v, indices)
+            for k, v in obs.items()
+        }
+
+    return obs[indices]
 
 if __name__ == "__main__":
     import argparse
@@ -192,6 +238,9 @@ if __name__ == "__main__":
         reward_mode=args.reward_mode,
         sim_backend=args.sim_backend,
     )
+
+    if args.render_backend is not None:
+        env_kwargs["render_backend"] = args.render_backend
 
     if args.control_mode is not None:
         env_kwargs["control_mode"] = args.control_mode
@@ -259,11 +308,15 @@ if __name__ == "__main__":
     else:
         print("Running evaluation")
 
-    agent = Agent(envs,obs_mode=args.encoder_type,).to(device)
+    agent = Agent(envs,encoder_type=args.encoder_type,).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     # ALGO Logic: Storage setup
-    obs = torch.zeros((args.num_steps, args.num_envs) + envs.single_observation_space.shape).to(device)
+    next_obs, _ = envs.reset(seed=args.seed)
+    obs = make_obs_buffer(
+        next_obs,
+        args.num_steps,
+    )
     actions = torch.zeros((args.num_steps, args.num_envs) + envs.single_action_space.shape).to(device)
     logprobs = torch.zeros((args.num_steps, args.num_envs)).to(device)
     rewards = torch.zeros((args.num_steps, args.num_envs)).to(device)
@@ -273,7 +326,6 @@ if __name__ == "__main__":
     # TRY NOT TO MODIFY: start the game
     global_step = 0
     start_time = time.time()
-    next_obs, _ = envs.reset(seed=args.seed)
     eval_obs, _ = eval_envs.reset(seed=args.seed)
     next_done = torch.zeros(args.num_envs, device=device)
     print(f"####")
@@ -338,7 +390,11 @@ if __name__ == "__main__":
         rollout_time = time.time()
         for step in range(0, args.num_steps):
             global_step += args.num_envs
-            obs[step] = next_obs
+            store_obs(
+                obs,
+                step,
+                next_obs,
+            )
             dones[step] = next_done
 
             # ALGO LOGIC: action logic
@@ -359,7 +415,22 @@ if __name__ == "__main__":
                 for k, v in final_info["episode"].items():
                     logger.add_scalar(f"train/{k}", v[done_mask].float().mean(), global_step)
                 with torch.no_grad():
-                    final_values[step, torch.arange(args.num_envs, device=device)[done_mask]] = agent.get_value(infos["final_observation"][done_mask]).view(-1)
+                    done_env_ids = torch.arange(
+                        args.num_envs,
+                        device=device
+                    )[done_mask]
+
+                    final_obs = index_obs(
+                        infos["final_observation"],
+                        done_mask,
+                    )
+
+                    final_values[
+                        step,
+                        done_env_ids
+                    ] = agent.get_value(
+                        final_obs
+                    ).view(-1)
         rollout_time = time.time() - rollout_time
         # bootstrap value according to termination and truncation
         with torch.no_grad():
@@ -405,7 +476,7 @@ if __name__ == "__main__":
             returns = advantages + values
 
         # flatten the batch
-        b_obs = obs.reshape((-1,) + envs.single_observation_space.shape)
+        b_obs = flatten_obs_buffer(obs)
         b_logprobs = logprobs.reshape(-1)
         b_actions = actions.reshape((-1,) + envs.single_action_space.shape)
         b_advantages = advantages.reshape(-1)
@@ -423,7 +494,17 @@ if __name__ == "__main__":
                 end = start + args.minibatch_size
                 mb_inds = b_inds[start:end]
 
-                _, newlogprob, entropy, newvalue = agent.get_action_and_value(b_obs[mb_inds], b_actions[mb_inds])
+                mb_obs = index_obs(
+                    b_obs,
+                    mb_inds,
+                )
+
+                _, newlogprob, entropy, newvalue = (
+                    agent.get_action_and_value(
+                        mb_obs,
+                        b_actions[mb_inds],
+                    )
+                )
                 logratio = newlogprob - b_logprobs[mb_inds]
                 ratio = logratio.exp()
 
