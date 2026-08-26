@@ -1,4 +1,4 @@
-exp_name: depth_gpu_smoke
+exp_name: depth_gpu_2048
 
 env_id: PushCube-v1
 obs_mode: depth
@@ -7,11 +7,11 @@ encoder_type: depth
 sim_backend: physx_cuda
 cuda: true
 
-num_envs: 1024
+num_envs: 2048
 num_eval_envs: 16
 
 num_steps: 20
-total_timesteps: 204800
+total_timesteps: 409600
 
 num_minibatches: 32
 update_epochs: 4
