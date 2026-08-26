@@ -43,36 +43,29 @@ class DepthEncoder(nn.Module):
         )
 
     def forward(self, obs):
-
-        # Depth
-        depth = obs["sensor_data"]["base_camera"]["depth"]
-
-        # mm -> m
-        depth = depth.float() / 1000.0
-
-        # clip and normalize
-        depth = torch.clamp(
-            depth,
-            0.0,
-            2.0,
-        ) / 2.0
-
-        # [B,H,W,1] -> [B,1,H,W]
-        depth = depth.permute(0, 3, 1, 2)
-
-        visual_feature = self.cnn(depth)
-
-        # Proprioception
         qpos = obs["agent"]["qpos"]
         qvel = obs["agent"]["qvel"]
+
         tcp_pose = obs["extra"]["tcp_pose"]
+        goal_pos = obs["extra"]["goal_pos"]
 
-        proprio = torch.cat(
-            [qpos, qvel, tcp_pose],
+        aux = torch.cat(
+            [
+                qpos,
+                qvel,
+                tcp_pose,
+                goal_pos,
+            ],
             dim=-1,
         )
 
-        return torch.cat(
-            [visual_feature, proprio],
+        feature = torch.cat(
+            [
+                visual_feature,
+                aux,
+            ],
             dim=-1,
         )
+
+        return feature
+        
