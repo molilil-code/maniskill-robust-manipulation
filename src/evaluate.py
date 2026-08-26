@@ -123,6 +123,8 @@ def make_eval_env(
     env = gym.make(
         env_id,
         num_envs=1,
+        obs_mode=args.obs_mode,
+        sim_backend=args.sim_backend,
         **env_kwargs,
     )
 
@@ -157,7 +159,7 @@ def load_agent(
     checkpoint,
     device,
 ):
-    agent = Agent(env).to(device)
+    agent = Agent(env,encoder_type=args.encoder_type,).to(device)
     
 
     state_dict = torch.load(
@@ -492,6 +494,9 @@ def main():
         type=str,
         default="results/evaluation.csv",
     )
+
+    parser.add_argument("--obs-mode", type=str, default="state")
+    parser.add_argument("--encoder-type", type=str, default="state")
 
     args = parser.parse_args()
 
