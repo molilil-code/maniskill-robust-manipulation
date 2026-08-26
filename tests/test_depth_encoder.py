@@ -28,7 +28,7 @@ print("feature:", feature.shape)
 print("encoder output_dim:", encoder.output_dim)
 
 assert feature.shape == (1, encoder.output_dim)
-assert encoder.output_dim == 281
+assert encoder.output_dim == 284
 
 env.close()
 
