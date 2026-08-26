@@ -1,0 +1,47 @@
+exp_name: depth_goal_gpu_smoke
+
+seed: 1
+
+env_id: PushCubeDepthGoal-v1
+
+obs_mode: depth
+encoder_type: depth
+
+sim_backend: physx_cuda
+cuda: true
+
+num_envs: 16
+num_eval_envs: 4
+
+num_steps: 20
+total_timesteps: 3200
+
+learning_rate: 0.0003
+gamma: 0.8
+gae_lambda: 0.9
+
+num_minibatches: 4
+update_epochs: 4
+
+norm_adv: true
+clip_coef: 0.2
+clip_vloss: false
+
+ent_coef: 0.0
+vf_coef: 0.5
+max_grad_norm: 0.5
+target_kl: 0.1
+
+reward_scale: 1.0
+anneal_lr: false
+finite_horizon_gae: false
+
+partial_reset: true
+eval_partial_reset: false
+
+eval_freq: 5
+num_eval_steps: 100
+
+capture_video: false
+save_model: true
+track: false

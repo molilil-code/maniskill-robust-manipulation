@@ -4,7 +4,16 @@ import torch.nn as nn
 from torch.distributions.normal import Normal
 
 from src.models.encoders import StateEncoder, DepthEncoder
+import numpy as np
+import torch
+import torch.nn as nn
+from torch.distributions.normal import Normal
 
+from src.models.encoders import (
+    StateEncoder,
+    DepthEncoder,
+    DepthGoalEncoder,
+)
 
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.orthogonal_(layer.weight, std)
@@ -16,9 +25,9 @@ class Agent(nn.Module):
     def __init__(self, envs, encoder_type="state"):
         super().__init__()
 
-        # -------------------------------------------------
-        # 1. Observation Encoder
-        # -------------------------------------------------
+        # ---------------------------------------------
+        # Observation Encoder
+        # ---------------------------------------------
         if encoder_type == "state":
             self.encoder = StateEncoder(
                 envs.single_observation_space
@@ -27,6 +36,9 @@ class Agent(nn.Module):
         elif encoder_type == "depth":
             self.encoder = DepthEncoder()
 
+        elif encoder_type == "depth_goal":
+            self.encoder = DepthGoalEncoder()
+
         else:
             raise ValueError(
                 f"Unsupported encoder_type: {encoder_type}"
@@ -34,16 +46,10 @@ class Agent(nn.Module):
 
         feature_dim = self.encoder.output_dim
 
-        # -------------------------------------------------
-        # 2. Action dimension
-        # -------------------------------------------------
         action_dim = int(
             np.prod(envs.single_action_space.shape)
         )
 
-        # -------------------------------------------------
-        # 3. Critic
-        # -------------------------------------------------
         self.critic = nn.Sequential(
             layer_init(nn.Linear(feature_dim, 256)),
             nn.Tanh(),
@@ -52,9 +58,6 @@ class Agent(nn.Module):
             layer_init(nn.Linear(256, 1), std=1.0),
         )
 
-        # -------------------------------------------------
-        # 4. Actor
-        # -------------------------------------------------
         self.actor_mean = nn.Sequential(
             layer_init(nn.Linear(feature_dim, 256)),
             nn.Tanh(),

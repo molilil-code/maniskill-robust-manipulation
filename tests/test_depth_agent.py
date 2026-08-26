@@ -23,6 +23,7 @@ env = gym.make(
 
 env = ManiSkillVectorEnv(
     env,
+    num_envs=1,
     ignore_terminations=True,
     record_metrics=True,
 )
@@ -40,7 +41,7 @@ print("Environment reset.")
 
 
 # --------------------------------------------------
-# Check observation FIRST
+# Check observation
 # --------------------------------------------------
 
 print("\n=== Observation ===")
@@ -77,15 +78,27 @@ print(
 
 
 # --------------------------------------------------
+# Device
+# --------------------------------------------------
+
+device = obs["sensor_data"]["base_camera"]["depth"].device
+
+print("\n=== Device ===")
+print("Observation device:", device)
+
+
+# --------------------------------------------------
 # Create Depth + Goal Agent
 # --------------------------------------------------
 
 agent = Agent(
     env,
-    encoder_type="depth",
-)
+    encoder_type="depth_goal"
+).to(device)
 
 agent.eval()
+
+print("Agent device:", next(agent.parameters()).device)
 
 
 # --------------------------------------------------
@@ -156,6 +169,10 @@ print(
     value.shape,
 )
 
+print(
+    "encoder class:",
+    type(agent.encoder).__name__,
+)
 
 # --------------------------------------------------
 # Assertions
@@ -199,6 +216,7 @@ assert torch.isfinite(action).all()
 assert torch.isfinite(logprob).all()
 assert torch.isfinite(entropy).all()
 assert torch.isfinite(value).all()
+assert torch.isfinite(value2).all()
 
 
 env.close()

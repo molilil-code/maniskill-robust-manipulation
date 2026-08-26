@@ -27,6 +27,10 @@ def set_seed(seed):
 # ============================================================
 # Evaluation cases
 # ============================================================
+# ============================================================
+# Standard evaluation cases
+# State / Pure Depth
+# ============================================================
 
 EVAL_CASES = {
 
@@ -60,7 +64,6 @@ EVAL_CASES = {
         "condition": "combined",
     },
 
-    # Physics OOD
     "mass_low": {
         "env_id": "PushCubePhysicsEval-v1",
         "condition": "mass_low",
@@ -86,12 +89,84 @@ EVAL_CASES = {
         "condition": "physics_combined",
     },
 
-    # Full OOD
     "full_combined": {
         "env_id": "PushCubeFullEval-v1",
         "condition": "full_combined",
     },
 }
+
+
+DEPTH_GOAL_EVAL_CASES = {
+
+    # Episode OOD
+    "normal": {
+        "env_id": "PushCubeDepthGoalEval-v1",
+        "condition": "normal",
+    },
+
+    "cube_ood": {
+        "env_id": "PushCubeDepthGoalEval-v1",
+        "condition": "cube_ood",
+    },
+
+    "goal_near": {
+        "env_id": "PushCubeDepthGoalEval-v1",
+        "condition": "goal_near",
+    },
+
+    "goal_far": {
+        "env_id": "PushCubeDepthGoalEval-v1",
+        "condition": "goal_far",
+    },
+
+    "qpos_shift": {
+        "env_id": "PushCubeDepthGoalEval-v1",
+        "condition": "qpos_shift",
+    },
+
+    "episode_combined": {
+        "env_id": "PushCubeDepthGoalEval-v1",
+        "condition": "combined",
+    },
+
+    # Physics OOD
+    "mass_low": {
+        "env_id": "PushCubeDepthGoalPhysicsEval-v1",
+        "condition": "mass_low",
+    },
+
+    "mass_high": {
+        "env_id": "PushCubeDepthGoalPhysicsEval-v1",
+        "condition": "mass_high",
+    },
+
+    "friction_low": {
+        "env_id": "PushCubeDepthGoalPhysicsEval-v1",
+        "condition": "friction_low",
+    },
+
+    "friction_high": {
+        "env_id": "PushCubeDepthGoalPhysicsEval-v1",
+        "condition": "friction_high",
+    },
+
+    "physics_combined": {
+        "env_id": "PushCubeDepthGoalPhysicsEval-v1",
+        "condition": "physics_combined",
+    },
+
+    # Full OOD
+    "full_combined": {
+        "env_id": "PushCubeDepthGoalFullEval-v1",
+        "condition": "full_combined",
+    },
+}
+
+def get_eval_cases(encoder_type):
+    if encoder_type == "depth_goal":
+        return DEPTH_GOAL_EVAL_CASES
+
+    return EVAL_CASES
 
 
 # ============================================================
@@ -176,12 +251,14 @@ def evaluate_condition(
 ):
     set_seed(seed)
 
-    if case_name not in EVAL_CASES:
+    eval_cases = get_eval_cases(encoder_type)
+
+    if case_name not in eval_cases:
         raise ValueError(
             f"Unknown evaluation case: {case_name}"
         )
 
-    case = EVAL_CASES[case_name]
+    case = eval_cases[case_name]
 
     env_id = case["env_id"]
     condition = case["condition"]
@@ -191,6 +268,8 @@ def evaluate_condition(
     print(f"Evaluation case : {case_name}")
     print(f"Environment     : {env_id}")
     print(f"Condition       : {condition}")
+    print(f"Observation     : {obs_mode}")
+    print(f"Encoder         : {encoder_type}")
     print("=" * 60)
 
     env = make_eval_env(
@@ -359,7 +438,9 @@ def evaluate_all(
 ):
     results = []
 
-    for case_name in EVAL_CASES:
+    eval_cases = get_eval_cases(encoder_type)
+
+    for case_name in eval_cases:
         result = evaluate_condition(
             checkpoint=checkpoint,
             case_name=case_name,
