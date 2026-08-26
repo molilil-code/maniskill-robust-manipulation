@@ -1,20 +1,24 @@
 import gymnasium as gym
 import torch
 
-import mani_skill.envs
-from mani_skill.vector.wrappers.gymnasium import ManiSkillVectorEnv
+import src.envs
 
+from mani_skill.vector.wrappers.gymnasium import ManiSkillVectorEnv
 from src.models.agent import Agent
 
 
-print("Creating Depth environment...")
+print("Creating Depth + Goal environment...")
+
+
+# --------------------------------------------------
+# Create environment
+# --------------------------------------------------
 
 env = gym.make(
-    "PushCube-v1",
+    "PushCubeDepthGoal-v1",
     num_envs=1,
-    obs_mode="rgb+depth",
-    sim_backend="physx_cpu",
-    render_backend="sapien_cpu",
+    obs_mode="depth",
+    sim_backend="physx_cuda",
 )
 
 env = ManiSkillVectorEnv(
@@ -25,13 +29,55 @@ env = ManiSkillVectorEnv(
 
 print("Environment created.")
 
+
+# --------------------------------------------------
+# Reset
+# --------------------------------------------------
+
 obs, info = env.reset(seed=1)
 
 print("Environment reset.")
 
 
 # --------------------------------------------------
-# Create Depth Agent
+# Check observation FIRST
+# --------------------------------------------------
+
+print("\n=== Observation ===")
+
+print(
+    "extra keys:",
+    obs["extra"].keys(),
+)
+
+print(
+    "depth:",
+    obs["sensor_data"]["base_camera"]["depth"].shape,
+)
+
+print(
+    "qpos:",
+    obs["agent"]["qpos"].shape,
+)
+
+print(
+    "qvel:",
+    obs["agent"]["qvel"].shape,
+)
+
+print(
+    "tcp_pose:",
+    obs["extra"]["tcp_pose"].shape,
+)
+
+print(
+    "goal_pos:",
+    obs["extra"]["goal_pos"].shape,
+)
+
+
+# --------------------------------------------------
+# Create Depth + Goal Agent
 # --------------------------------------------------
 
 agent = Agent(
@@ -43,7 +89,7 @@ agent.eval()
 
 
 # --------------------------------------------------
-# Encoder output
+# Forward
 # --------------------------------------------------
 
 with torch.no_grad():
@@ -62,53 +108,52 @@ with torch.no_grad():
     )
 
 
-print("\n=== Observation ===")
-
-print(
-    "depth:",
-    obs["sensor_data"]["base_camera"]["depth"].shape
-)
-
-print(
-    "qpos:",
-    obs["agent"]["qpos"].shape
-)
-
+# --------------------------------------------------
+# Print Encoder results
+# --------------------------------------------------
 
 print("\n=== Encoder ===")
 
-print("feature:", feature.shape)
 print(
-    "encoder output_dim:",
-    agent.encoder.output_dim
+    "feature:",
+    feature.shape,
 )
 
+print(
+    "encoder output_dim:",
+    agent.encoder.output_dim,
+)
+
+
+# --------------------------------------------------
+# Print Agent results
+# --------------------------------------------------
 
 print("\n=== Agent ===")
 
 print(
     "deterministic action:",
-    deterministic_action.shape
+    deterministic_action.shape,
 )
 
 print(
     "sampled action:",
-    action.shape
+    action.shape,
 )
 
 print(
     "logprob:",
-    logprob.shape
+    logprob.shape,
 )
 
 print(
     "entropy:",
-    entropy.shape
+    entropy.shape,
 )
 
 print(
     "value:",
-    value.shape
+    value.shape,
 )
 
 
@@ -116,20 +161,39 @@ print(
 # Assertions
 # --------------------------------------------------
 
-assert feature.shape == (
-    1,
-    agent.encoder.output_dim,
+assert obs["sensor_data"]["base_camera"]["depth"].shape == (
+    1, 128, 128, 1
 )
 
-assert agent.encoder.output_dim == 281
+assert obs["agent"]["qpos"].shape == (1, 9)
 
-assert deterministic_action.shape[0] == 1
+assert obs["agent"]["qvel"].shape == (1, 9)
+
+assert obs["extra"]["tcp_pose"].shape == (1, 7)
+
+assert obs["extra"]["goal_pos"].shape == (1, 3)
+
+
+# 256 visual + 9 qpos + 9 qvel + 7 tcp + 3 goal
+assert agent.encoder.output_dim == 284
+
+assert feature.shape == (
+    1,
+    284,
+)
+
+assert deterministic_action.shape == (1, 8)
+
 assert action.shape == deterministic_action.shape
 
 assert logprob.shape == (1,)
+
 assert entropy.shape == (1,)
+
 assert value.shape == (1, 1)
 
+
+# numerical sanity checks
 assert torch.isfinite(feature).all()
 assert torch.isfinite(action).all()
 assert torch.isfinite(logprob).all()
@@ -139,4 +203,4 @@ assert torch.isfinite(value).all()
 
 env.close()
 
-print("\nDepth Agent forward test PASSED.")
+print("\nDepth + Goal Agent forward test PASSED.")
