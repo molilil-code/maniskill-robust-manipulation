@@ -10,3 +10,4 @@ from .pushcube_depth_goal import PushCubeDepthGoalEnv
 from .pushcube_depth_goal_eval import PushCubeDepthGoalEvalEnv
 from .pushcube_depth_goal_physics_eval import PushCubeDepthGoalPhysicsEvalEnv
 from .pushcube_depth_goal_full_eval import PushCubeDepthGoalFullEvalEnv
+from .pushcube_depth_goal_dr import PushCubeDepthGoalDREnv
