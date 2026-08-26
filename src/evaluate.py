@@ -101,17 +101,16 @@ EVAL_CASES = {
 def make_eval_env(
     env_id,
     condition,
+    obs_mode="state",
     sim_backend="physx_cpu",
     control_mode=None,
 ):
     """
     创建与官方 PPO 兼容的 evaluation environment。
-
-    第一版固定 num_envs=1，方便 CPU 调试和保证统计清晰。
     """
 
     env_kwargs = {
-        "obs_mode": "state",
+        "obs_mode": obs_mode,
         "reward_mode": "normalized_dense",
         "sim_backend": sim_backend,
         "condition": condition,
@@ -123,32 +122,20 @@ def make_eval_env(
     env = gym.make(
         env_id,
         num_envs=1,
-        obs_mode=args.obs_mode,
-        sim_backend=args.sim_backend,
         **env_kwargs,
     )
 
-    # PPO Agent要求连续 Box action space
     if isinstance(env.action_space, gym.spaces.Dict):
         env = FlattenActionSpaceWrapper(env)
 
-    # 与官方 PPO evaluation 的处理保持一致
     env = ManiSkillVectorEnv(
         env,
         num_envs=1,
-
-        # 不因为 success 提前结束，
-        # 一直跑到 episode horizon，
-        # 这样得到 success_at_end
         ignore_terminations=True,
-
-        # 自动统计 return、reward、
-        # success_at_end、episode_len 等
         record_metrics=True,
     )
 
     return env
-
 
 # ============================================================
 # Load checkpoint
@@ -158,27 +145,23 @@ def load_agent(
     env,
     checkpoint,
     device,
+    encoder_type="state",
 ):
-    agent = Agent(env,encoder_type=args.encoder_type,).to(device)
-    
+    agent = Agent(
+        env,
+        encoder_type=encoder_type,
+    ).to(device)
 
     state_dict = torch.load(
         checkpoint,
         map_location=device,
     )
 
-    # 你目前 PPO 保存的是：
-    # torch.save(agent.state_dict(), path)
     agent.load_state_dict(state_dict)
-
     agent.eval()
 
     return agent
 
-
-# ============================================================
-# Evaluate one condition
-# ============================================================
 
 def evaluate_condition(
     checkpoint,
@@ -188,6 +171,8 @@ def evaluate_condition(
     sim_backend="physx_cpu",
     device="cpu",
     control_mode=None,
+    obs_mode="state",
+    encoder_type="state",
 ):
     set_seed(seed)
 
@@ -211,6 +196,7 @@ def evaluate_condition(
     env = make_eval_env(
         env_id=env_id,
         condition=condition,
+        obs_mode=obs_mode,
         sim_backend=sim_backend,
         control_mode=control_mode,
     )
@@ -221,6 +207,7 @@ def evaluate_condition(
         env=env,
         checkpoint=checkpoint,
         device=device,
+        encoder_type=encoder_type,
     )
 
     # 同一个 seed 用于不同 policy，
@@ -367,6 +354,8 @@ def evaluate_all(
     sim_backend,
     device,
     control_mode,
+    obs_mode,
+    encoder_type,
 ):
     results = []
 
@@ -379,6 +368,8 @@ def evaluate_all(
             sim_backend=sim_backend,
             device=device,
             control_mode=control_mode,
+            obs_mode=obs_mode,
+            encoder_type=encoder_type,
         )
 
         result["model"] = model_name
@@ -510,19 +501,25 @@ def main():
             sim_backend=args.sim_backend,
             device=args.device,
             control_mode=args.control_mode,
+            obs_mode=args.obs_mode,
+            encoder_type=args.encoder_type,
         )
+
 
     else:
 
         result = evaluate_condition(
-            checkpoint=args.checkpoint,
-            case_name=args.case,
-            num_episodes=args.num_episodes,
-            seed=args.seed,
-            sim_backend=args.sim_backend,
-            device=args.device,
-            control_mode=args.control_mode,
-        )
+                checkpoint=args.checkpoint,
+                case_name=args.case,
+                num_episodes=args.num_episodes,
+                seed=args.seed,
+                sim_backend=args.sim_backend,
+                device=args.device,
+                control_mode=args.control_mode,
+                obs_mode=args.obs_mode,
+                encoder_type=args.encoder_type,
+            )
+        
 
         result["model"] = args.model_name
 
