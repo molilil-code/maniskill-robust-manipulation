@@ -1,0 +1,10 @@
+mani-skill
+torch
+gymnasium
+numpy
+pyyaml
+tensorboard
+pandas
+matplotlib
+transforms3d
+imageio[ffmpeg]

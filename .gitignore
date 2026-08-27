@@ -10,4 +10,8 @@ wandb/
 *.pt
 *.pth
 
+# 本地 checkpoint 备份
+model_backup/
+model_backup.tar.gz
+
 .DS_Store
