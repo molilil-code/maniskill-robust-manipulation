@@ -17,7 +17,7 @@ PushCubeDR-v1.
 | Parameter | Distribution |
 |---|---|
 | Cube x/y | U(-0.13, 0.13) m |
-| Goal offset | U(0.17, 0.23) m |
+| Goal offset | U(0.18, 0.22) m |
 | Robot qpos noise | sigma = 0.04 rad |
 
 ## OOD Evaluation Conditions
