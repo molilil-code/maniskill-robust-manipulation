@@ -15,6 +15,7 @@ from mani_skill.vector.wrappers.gymnasium import ManiSkillVectorEnv
 
 import src.envs
 import random
+from src.utils.depth_frame_stack import DepthFrameStacker
 
 
 def set_seed(seed):
@@ -163,7 +164,10 @@ DEPTH_GOAL_EVAL_CASES = {
 }
 
 def get_eval_cases(encoder_type):
-    if encoder_type == "depth_goal":
+    if encoder_type in (
+        "depth_goal",
+        "depth_goal_stack4",
+    ): 
         return DEPTH_GOAL_EVAL_CASES
 
     return EVAL_CASES
@@ -280,6 +284,13 @@ def evaluate_condition(
         control_mode=control_mode,
     )
 
+    if encoder_type == "depth_goal_stack4":
+        frame_stacker = DepthFrameStacker(
+            num_frames=4
+        )
+    else:
+        frame_stacker = None
+
     device = torch.device(device)
 
     agent = load_agent(
@@ -292,6 +303,11 @@ def evaluate_condition(
     # 同一个 seed 用于不同 policy，
     # 尽量保证公平比较
     obs, _ = env.reset(seed=seed)
+
+    if frame_stacker is not None:
+        obs = frame_stacker.reset(
+            obs
+        )
 
     metrics = defaultdict(list)
 
@@ -333,9 +349,34 @@ def evaluate_condition(
             )
 
 
-        obs, reward, terminated, truncated, infos = env.step(
-            action
+        (
+            raw_obs,
+            reward,
+            terminated,
+            truncated,
+            infos,
+        ) = env.step(action)
+
+        reset_mask = torch.zeros_like(
+            truncated,
+            dtype=torch.bool,
         )
+
+        if "final_info" in infos:
+            reset_mask = infos[
+                "_final_info"
+            ].bool()
+
+        if frame_stacker is not None:
+
+            obs = frame_stacker.step(
+                raw_obs,
+                reset_mask,
+            )
+
+        else:
+
+            obs = raw_obs
 
         # ManiSkillVectorEnv会在episode结束时
         # 把统计信息放进final_info

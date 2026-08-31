@@ -23,6 +23,7 @@ from mani_skill.utils.wrappers.record import RecordEpisode
 from mani_skill.vector.wrappers.gymnasium import ManiSkillVectorEnv
 
 from src.models.agent import Agent
+from src.utils.depth_frame_stack import DepthFrameStacker
 
 @dataclass
 class Args:
@@ -207,7 +208,6 @@ if __name__ == "__main__":
     parser.add_argument("--config", type=str, required=True, help="Path to yaml config file")
     cli_args = parser.parse_args()
 
-    # 调用你已经写好的加载函数
     args = load_config(cli_args.config)
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
@@ -264,6 +264,7 @@ if __name__ == "__main__":
     print("=" * 50)
     envs = gym.make(args.env_id, num_envs=args.num_envs if not args.evaluate else 1, reconfiguration_freq=args.reconfiguration_freq, **env_kwargs)
     eval_envs = gym.make(args.env_id, num_envs=args.num_eval_envs, reconfiguration_freq=args.eval_reconfiguration_freq, **env_kwargs)
+
     if isinstance(envs.action_space, gym.spaces.Dict):
         envs = FlattenActionSpaceWrapper(envs)
         eval_envs = FlattenActionSpaceWrapper(eval_envs)
@@ -280,6 +281,22 @@ if __name__ == "__main__":
     eval_envs = ManiSkillVectorEnv(eval_envs, args.num_eval_envs, ignore_terminations=not args.eval_partial_reset, record_metrics=True)
     assert isinstance(envs.single_action_space, gym.spaces.Box), "only continuous action space is supported"
 
+    use_frame_stack = (
+        args.encoder_type == "depth_goal_stack4"
+    )
+
+    if use_frame_stack:
+        train_frame_stacker = DepthFrameStacker(
+            num_frames=4
+        )
+
+        eval_frame_stacker = DepthFrameStacker(
+            num_frames=4
+        )
+    else:
+        train_frame_stacker = None
+        eval_frame_stacker = None
+        
     max_episode_steps = gym_utils.find_max_episode_steps_value(envs._env)
     logger = None
     if not args.evaluate:
@@ -313,6 +330,12 @@ if __name__ == "__main__":
 
     # ALGO Logic: Storage setup
     next_obs, _ = envs.reset(seed=args.seed)
+
+    if use_frame_stack:
+        next_obs = train_frame_stacker.reset(
+            next_obs
+        )
+
     obs = make_obs_buffer(
         next_obs,
         args.num_steps,
@@ -323,10 +346,15 @@ if __name__ == "__main__":
     dones = torch.zeros((args.num_steps, args.num_envs)).to(device)
     values = torch.zeros((args.num_steps, args.num_envs)).to(device)
 
-    # TRY NOT TO MODIFY: start the game
+
     global_step = 0
     start_time = time.time()
     eval_obs, _ = eval_envs.reset(seed=args.seed)
+
+    if use_frame_stack:
+        eval_obs = eval_frame_stacker.reset(
+            eval_obs
+        )
     next_done = torch.zeros(args.num_envs, device=device)
     print(f"####")
     print(f"args.num_iterations={args.num_iterations} args.num_envs={args.num_envs} args.num_eval_envs={args.num_eval_envs}")
@@ -346,6 +374,10 @@ if __name__ == "__main__":
         if iteration % args.eval_freq == 1:
             print("Evaluating")
             eval_obs, _ = eval_envs.reset()
+            if use_frame_stack:
+                eval_obs = eval_frame_stacker.reset(
+                    eval_obs
+                )
             eval_metrics = defaultdict(list)
             num_episodes = 0
             for _ in range(args.num_eval_steps):
@@ -358,12 +390,30 @@ if __name__ == "__main__":
                     eval_action = clip_action(eval_action)
 
                     (
-                    eval_obs,
+                    raw_eval_obs,
                     eval_rew,
                     eval_terminations,
                     eval_truncations,
                     eval_infos,
                     ) = eval_envs.step(eval_action)
+
+                    eval_reset_mask = torch.zeros_like(
+                        eval_truncations,
+                        dtype=torch.bool,
+                    )
+
+                    if "final_info" in eval_infos:
+                        eval_reset_mask = eval_infos[
+                            "_final_info"
+                        ].bool()
+
+                    if use_frame_stack:
+                        eval_obs = eval_frame_stacker.step(
+                            raw_eval_obs,
+                            eval_reset_mask,
+                        )
+                    else:
+                        eval_obs = raw_eval_obs
                     if "final_info" in eval_infos:
                         mask = eval_infos["_final_info"]
                         num_episodes += mask.sum()
@@ -404,33 +454,121 @@ if __name__ == "__main__":
             actions[step] = action
             logprobs[step] = logprob
 
-            # TRY NOT TO MODIFY: execute the game and log data.
-            next_obs, reward, terminations, truncations, infos = envs.step(clip_action(action))
-            next_done = torch.logical_or(terminations, truncations).to(torch.float32)
-            rewards[step] = reward.view(-1) * args.reward_scale
+          
+            (
+                raw_next_obs,
+                reward,
+                terminations,
+                truncations,
+                infos,
+            ) = envs.step(
+                clip_action(action)
+            )
 
+            # PPO 的 done
+            next_done_bool = torch.logical_or(
+                terminations,
+                truncations,
+            )
+
+            next_done = next_done_bool.to(
+                torch.float32
+            )
+
+            rewards[step] = (
+                reward.view(-1)
+                * args.reward_scale
+            )
+
+            # --------------------------------------------------
+            # 哪些环境真正结束并发生 reset
+            # --------------------------------------------------
+            reset_mask = torch.zeros_like(
+                next_done_bool,
+                dtype=torch.bool,
+            )
+
+            # --------------------------------------------------
+            # Terminal observation / final value
+            # 必须在 frame stack 更新之前处理
+            # --------------------------------------------------
             if "final_info" in infos:
+
                 final_info = infos["final_info"]
-                done_mask = infos["_final_info"]
+                final_info_mask = infos[
+                    "_final_info"
+                ].bool()
+
+                reset_mask = final_info_mask
+
                 for k, v in final_info["episode"].items():
-                    logger.add_scalar(f"train/{k}", v[done_mask].float().mean(), global_step)
+                    logger.add_scalar(
+                        f"train/{k}",
+                        v[final_info_mask]
+                        .float()
+                        .mean(),
+                        global_step,
+                    )
+
                 with torch.no_grad():
+
                     done_env_ids = torch.arange(
                         args.num_envs,
-                        device=device
-                    )[done_mask]
+                        device=device,
+                    )[final_info_mask]
 
                     final_obs = index_obs(
                         infos["final_observation"],
-                        done_mask,
+                        final_info_mask,
                     )
 
+                    # ------------------------------------------
+                    # FrameStack terminal observation:
+                    #
+                    # [Dt-3,Dt-2,Dt-1,Dt]
+                    # +
+                    # Dterminal
+                    #
+                    # ->
+                    #
+                    # [Dt-2,Dt-1,Dt,Dterminal]
+                    # ------------------------------------------
+                    if use_frame_stack:
+
+                        final_obs = (
+                            train_frame_stacker
+                            .make_terminal_obs(
+                                final_obs,
+                                final_info_mask,
+                            )
+                        )
+
+                    # IMPORTANT:
+                    # non-frame-stack 也必须计算！
                     final_values[
                         step,
                         done_env_ids
                     ] = agent.get_value(
                         final_obs
                     ).view(-1)
+
+
+            # --------------------------------------------------
+            # Update frame stack
+            #
+            # 必须每一个 timestep 都执行
+            # --------------------------------------------------
+            if use_frame_stack:
+
+                next_obs = train_frame_stacker.step(
+                    raw_next_obs,
+                    reset_mask,
+                )
+
+            else:
+
+                next_obs = raw_next_obs
+
         rollout_time = time.time() - rollout_time
         # bootstrap value according to termination and truncation
         with torch.no_grad():
@@ -449,14 +587,7 @@ if __name__ == "__main__":
                 # if next_not_done is 1, final_values is always 0
                 # if next_not_done is 0, then use final_values, which is computed according to bootstrap_at_done
                 if args.finite_horizon_gae:
-                    """
-                    See GAE paper equation(16) line 1, we will compute the GAE based on this line only
-                    1             *(  -V(s_t)  + r_t                                                               + gamma * V(s_{t+1})   )
-                    lambda        *(  -V(s_t)  + r_t + gamma * r_{t+1}                                             + gamma^2 * V(s_{t+2}) )
-                    lambda^2      *(  -V(s_t)  + r_t + gamma * r_{t+1} + gamma^2 * r_{t+2}                         + ...                  )
-                    lambda^3      *(  -V(s_t)  + r_t + gamma * r_{t+1} + gamma^2 * r_{t+2} + gamma^3 * r_{t+3}
-                    We then normalize it by the sum of the lambda^i (instead of 1-lambda)
-                    """
+                   
                     if t == args.num_steps - 1: # initialize
                         lam_coef_sum = 0.
                         reward_term_sum = 0. # the sum of the second term

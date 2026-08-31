@@ -61,7 +61,6 @@ def main():
     # 1. Environment
     # ==================================================
 
-    # 只创建一次！
     raw_env = gym.make(
         "PushCubeDepthGoalEval-v1",
         num_envs=1,
@@ -74,7 +73,6 @@ def main():
     # 保留真实 task env 引用，只用于诊断
     task_env = raw_env.unwrapped
 
-    # 后面所有 wrapper 都包在同一个 raw_env 上
     env = raw_env
 
     if isinstance(

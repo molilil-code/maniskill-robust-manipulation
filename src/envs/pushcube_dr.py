@@ -23,7 +23,7 @@ class PushCubeDREnv(PushCubeEnv):
         self,
         *args,
         cube_xy_range=0.13,
-        goal_offset_range=(0.18, 0.22),
+        goal_offset_range=(0.17, 0.23),
         robot_init_qpos_noise=0.04,
         **kwargs,
     ):

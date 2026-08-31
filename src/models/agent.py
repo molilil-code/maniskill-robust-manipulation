@@ -3,13 +3,11 @@ import torch
 import torch.nn as nn
 from torch.distributions.normal import Normal
 
-from src.models.encoders import StateEncoder, DepthEncoder
-
-
 from src.models.encoders import (
     StateEncoder,
     DepthEncoder,
     DepthGoalEncoder,
+    DepthGoalFrameStackEncoder,
 )
 
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
@@ -35,6 +33,9 @@ class Agent(nn.Module):
 
         elif encoder_type == "depth_goal":
             self.encoder = DepthGoalEncoder()
+
+        elif encoder_type == "depth_goal_stack4":
+            self.encoder = DepthGoalFrameStackEncoder()  
 
         else:
             raise ValueError(

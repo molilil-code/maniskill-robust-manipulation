@@ -1,0 +1,16 @@
+exp_name: depth_goal_stack4_dr_gpu_seed1
+
+seed: 1
+
+env_id: PushCubeDepthGoalDR-v1
+
+obs_mode: depth
+encoder_type: depth_goal_stack4
+
+frame_stack: 4
+
+sim_backend: physx_cuda
+cuda: true
+
+num_envs: 2048
+...

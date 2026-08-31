@@ -1,0 +1,16 @@
+exp_name: depth_goal_contact_dr_gpu_seed1
+seed: 1
+env_id: PushCubeDepthGoalContactDR-v1
+obs_mode: depth
+encoder_type: depth_goal
+sim_backend: physx_cuda
+cuda: true
+
+num_envs: 2048
+num_eval_envs: 16
+
+num_steps: 20
+total_timesteps: 2000000
+
+num_minibatches: 32
+update_epochs: 8
