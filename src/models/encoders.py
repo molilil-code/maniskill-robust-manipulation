@@ -297,18 +297,24 @@ class DepthGoalFrameStackEncoder(nn.Module):
         # Stacked Depth
         # [B, H, W, 4]
         # --------------------------------
-        depth = obs["depth_stack"]
+        depth = obs["depth_stack"].float()
 
+        # 原逻辑：
         # mm -> m
-        depth = depth.float() / 1000.0
-
-        # clip + normalize
-        depth = torch.clamp(
-            depth,
+        # clamp [0, 2m]
+        # normalize / 2
+        #
+        # 等价于：
+        # millimeter clamp [0, 2000] -> /2000
+        depth.clamp_(
             0.0,
-            2.0,
-        ) / 2.0
+            2000.0,
+        )
 
+        depth.mul_(
+            1.0 / 2000.0
+        )
+        
         # [B,H,W,4] -> [B,4,H,W]
         depth = depth.permute(
             0, 3, 1, 2

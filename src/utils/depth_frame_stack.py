@@ -29,11 +29,19 @@ class DepthFrameStacker:
 
     @staticmethod
     def _add_stack_to_obs(obs, depth_stack):
-        # shallow copy is enough because we only add a top-level key
-        new_obs = dict(obs)
-        new_obs["depth_stack"] = depth_stack
-        return new_obs
+       return {
+        "depth_stack": depth_stack,
 
+        "agent": {
+            "qpos": obs["agent"]["qpos"],
+            "qvel": obs["agent"]["qvel"],
+        },
+
+        "extra": {
+            "tcp_pose": obs["extra"]["tcp_pose"],
+            "goal_pos": obs["extra"]["goal_pos"],
+        },
+    }
     def reset(self, obs):
         """
         Full reset.
@@ -144,6 +152,30 @@ class DepthFrameStacker:
             )
 
         self.depth_stack = new_stack
+
+        if torch.any(done_mask):
+
+            ids = torch.where(done_mask)[0]
+
+            done_stack = new_stack[
+                done_mask
+            ]
+
+            assert torch.equal(
+                done_stack[..., 0],
+                done_stack[..., 1],
+            )
+
+            assert torch.equal(
+                done_stack[..., 1],
+                done_stack[..., 2],
+            )
+
+            assert torch.equal(
+                done_stack[..., 2],
+                done_stack[..., 3],
+            )
+
 
         return self._add_stack_to_obs(
             obs,
